@@ -1,102 +1,117 @@
-WITH ad_spend AS (
-    -- Объединяем данные о затратах из vk_ads и ya_ads
-    SELECT
-        campaign_date::DATE AS visit_date,
+SELECT 
+    v.visit_date,
+    v.utm_source,
+    v.utm_medium,
+    v.utm_campaign,
+    v.visitors_count,
+    v.total_cost,
+    COALESCE(l.leads_count, 0) AS leads_count,
+    COALESCE(l.purchases_count, 0) AS purchases_count,
+    COALESCE(l.revenue, 0) AS revenue
+FROM (
+    -- Агрегированные данные по визитам
+    SELECT 
+        visit_date,
         utm_source,
         utm_medium,
         utm_campaign,
+        COUNT(visitor_id) AS visitors_count,
         SUM(daily_spent) AS total_cost
     FROM (
-        SELECT
-            campaign_date,
+        -- Последние платные клики
+        SELECT 
+            visitor_id,
+            visit_date,
             utm_source,
             utm_medium,
             utm_campaign,
             daily_spent
-        FROM
-            vk_ads
-        UNION ALL
-        SELECT
-            campaign_date,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            daily_spent
-        FROM
-            ya_ads
-    ) combined_ads
-    WHERE daily_spent > 0
-    GROUP BY
-        campaign_date::DATE, utm_source, utm_medium, utm_campaign
-),
-visit_data AS (
-    -- Считаем количество визитов для каждой комбинации меток
-    SELECT
-        visit_date::DATE AS visit_date,
-        "source" AS utm_source,
-        medium AS utm_medium,
-        campaign AS utm_campaign,
-        COUNT(*) AS visitors_count
-    FROM
-        sessions
-    GROUP BY
-        visit_date::DATE, "source", medium, campaign
-),
-lead_data AS (
-    -- Считаем количество лидов и успешно закрытых лидов
-    SELECT
-        l.created_at::DATE AS visit_date,
-        s."source" AS utm_source,
-        s.medium AS utm_medium,
-        s.campaign AS utm_campaign,
-        COUNT(*) AS leads_count,
-        SUM(CASE WHEN l.closing_reason = 'Успешно реализовано' OR l.status_id = 142 THEN 1 ELSE 0 END) AS purchases_count,
+        FROM (
+            -- Все платные сессии с ранжированием
+            SELECT 
+                s.visitor_id,
+                s.visit_date::date AS visit_date,
+                COALESCE(ya.utm_source, vk.utm_source, s.source) AS utm_source,
+                COALESCE(ya.utm_medium, vk.utm_medium, s.medium) AS utm_medium,
+                COALESCE(ya.utm_campaign, vk.utm_campaign, s.campaign) AS utm_campaign,
+                COALESCE(ya.daily_spent, vk.daily_spent, 0) AS daily_spent,
+                ROW_NUMBER() OVER (PARTITION BY s.visitor_id ORDER BY s.visit_date DESC) AS rn
+            FROM 
+                public.sessions s
+            LEFT JOIN public.ya_ads ya 
+                ON s.source = ya.utm_source 
+                AND s.medium = ya.utm_medium 
+                AND s.campaign = ya.utm_campaign
+                AND s.visit_date::date = ya.campaign_date::date
+            LEFT JOIN public.vk_ads vk 
+                ON s.source = vk.utm_source 
+                AND s.medium = vk.utm_medium 
+                AND s.campaign = vk.utm_campaign
+                AND s.visit_date::date = vk.campaign_date::date
+            WHERE 
+                LOWER(COALESCE(ya.utm_medium, vk.utm_medium, s.medium)) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+        ) ranked_sessions
+        WHERE rn = 1
+    ) last_clicks
+    GROUP BY 
+        visit_date, utm_source, utm_medium, utm_campaign
+) v
+LEFT JOIN (
+    -- Агрегированные данные по лидам
+    SELECT 
+        lpc.visit_date,
+        lpc.utm_source,
+        lpc.utm_medium,
+        lpc.utm_campaign,
+        COUNT(l.lead_id) AS leads_count,
+        COUNT(CASE WHEN l.closing_reason = 'Успешно реализовано' OR l.status_id = 142 THEN l.lead_id END) AS purchases_count,
         SUM(CASE WHEN l.closing_reason = 'Успешно реализовано' OR l.status_id = 142 THEN l.amount ELSE 0 END) AS revenue
-    FROM
-        public.leads l
-    LEFT JOIN
-        sessions s
-    ON
-        l.visitor_id = s.visitor_id
-    GROUP BY
-        l.created_at::DATE, s."source", s.medium, s.campaign
-),
-aggregated_data AS (
-    -- Объединяем все данные
-    SELECT
-        COALESCE(v.visit_date, l.visit_date, a.visit_date) AS visit_date,
-        COALESCE(v.utm_source, l.utm_source, a.utm_source) AS utm_source,
-        COALESCE(v.utm_medium, l.utm_medium, a.utm_medium) AS utm_medium,
-        COALESCE(v.utm_campaign, l.utm_campaign, a.utm_campaign) AS utm_campaign,
-        COALESCE(v.visitors_count, 0) AS visitors_count,
-        COALESCE(a.total_cost, 0) AS total_cost,
-        COALESCE(l.leads_count, 0) AS leads_count,
-        COALESCE(l.purchases_count, 0) AS purchases_count,
-        COALESCE(l.revenue, 0) AS revenue
-    FROM
-        visit_data v
-    FULL OUTER JOIN
-        lead_data l
-    ON
-        v.visit_date = l.visit_date
-        AND v.utm_source = l.utm_source
-        AND v.utm_medium = l.utm_medium
-        AND v.utm_campaign = l.utm_campaign
-    FULL OUTER JOIN
-        ad_spend a
-    ON
-        COALESCE(v.visit_date, l.visit_date) = a.visit_date
-        AND COALESCE(v.utm_source, l.utm_source) = a.utm_source
-        AND COALESCE(v.utm_medium, l.utm_medium) = a.utm_medium
-        AND COALESCE(v.utm_campaign, l.utm_campaign) = a.utm_campaign
-)
--- Финальная выборка с сортировкой
-SELECT *
-FROM aggregated_data
-ORDER BY
-    CASE WHEN revenue IS NULL THEN 1 ELSE 0 END, -- NULL записи идут последними
-    revenue DESC, -- По убыванию revenue
-    visit_date ASC, -- От ранних к поздним
-    visitors_count DESC, -- По убыванию visitors_count
-    utm_source ASC, utm_medium ASC, utm_campaign ASC -- В алфавитном порядке
-LIMIT 15; -- Берем топ-15 записей
+    FROM (
+        -- Последние платные клики для лидов
+        SELECT 
+            visitor_id,
+            visit_date,
+            utm_source,
+            utm_medium,
+            utm_campaign
+        FROM (
+            SELECT 
+                s.visitor_id,
+                s.visit_date::date AS visit_date,
+                COALESCE(ya.utm_source, vk.utm_source, s.source) AS utm_source,
+                COALESCE(ya.utm_medium, vk.utm_medium, s.medium) AS utm_medium,
+                COALESCE(ya.utm_campaign, vk.utm_campaign, s.campaign) AS utm_campaign,
+                ROW_NUMBER() OVER (PARTITION BY s.visitor_id ORDER BY s.visit_date DESC) AS rn
+            FROM 
+                public.sessions s
+            LEFT JOIN public.ya_ads ya 
+                ON s.source = ya.utm_source 
+                AND s.medium = ya.utm_medium 
+                AND s.campaign = ya.utm_campaign
+                AND s.visit_date::date = ya.campaign_date::date
+            LEFT JOIN public.vk_ads vk 
+                ON s.source = vk.utm_source 
+                AND s.medium = vk.utm_medium 
+                AND s.campaign = vk.utm_campaign
+                AND s.visit_date::date = vk.campaign_date::date
+            WHERE 
+                LOWER(COALESCE(ya.utm_medium, vk.utm_medium, s.medium)) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+        ) ranked_sessions
+        WHERE rn = 1
+    ) lpc
+    LEFT JOIN 
+        public.leads l ON lpc.visitor_id = l.visitor_id
+    GROUP BY 
+        lpc.visit_date, lpc.utm_source, lpc.utm_medium, lpc.utm_campaign
+) l ON v.visit_date = l.visit_date 
+    AND v.utm_source = l.utm_source 
+    AND v.utm_medium = l.utm_medium 
+    AND v.utm_campaign = l.utm_campaign
+ORDER BY 
+    revenue DESC NULLS LAST,
+    v.visit_date ASC,
+    v.visitors_count DESC,
+    v.utm_source ASC,
+    v.utm_medium ASC,
+    v.utm_campaign ASC
+LIMIT 15;
