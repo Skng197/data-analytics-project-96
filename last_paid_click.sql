@@ -1,16 +1,15 @@
 SELECT
     t.visitor_id,
-    TO_CHAR(t.visit_date, 'DD.MM.YYYY') AS visit_date,  -- Форматируем дату
+    TO_CHAR(t.visit_date, 'YYYY-MM-DD HH24:MI:SS.000') AS visit_date,  -- Changed to expected format
     t.utm_source,
     t.utm_medium,
     t.utm_campaign,
     t.lead_id,
-    TO_CHAR(t.created_at, 'DD.MM.YYYY') AS created_at,  -- Форматируем дату
+    TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS.000') AS created_at,  -- Changed to expected format
     t.amount,
     t.closing_reason,
     t.status_id
 FROM (
-    -- остальная часть запроса без изменений
     SELECT
         l.visitor_id,
         s.visit_date,
