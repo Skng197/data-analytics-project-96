@@ -1,1 +1,11 @@
-
+"visitor_id","visit_date","utm_source","utm_medium","utm_campaign","lead_id","created_at","amount","closing_reason","status_id"
+"35060e525ca62de0a0aa93992c7e07799d855f79","01.06.2023",yandex,cpc,prof-frontend,"26066151","15.06.2023",237990,Успешная продажа,142
+d183fbda6f03b965a1cd1cee0a3f7b81a44b78ec,"01.06.2023",yandex,cpc,base-frontend,"74450379","30.06.2023",201150,Успешная продажа,142
+ca003c89182365dd75262e54772fda03ee923e92,"01.06.2023",vk,cpc,freemium-frontend,"48838540","20.06.2023",189210,Успешная продажа,142
+d31c95902f2d3183e7052c235ad72d82838e98c2,"01.06.2023",yandex,cpc,freemium,"21579820","19.06.2023",188991,Успешная продажа,142
+fd1438246c3b520c8dfa1aed4c73133c8ca10ab4,"01.06.2023",yandex,cpc,prof-frontend,"23169912","14.06.2023",180306,Успешная продажа,142
+b6ddcd9f994bad353f37b0c5f7115b66d07b10c2,"01.06.2023",vk,cpc,prof-java,"50769366","15.06.2023",178800,Успешная продажа,142
+f2db2eb1295e51cf3426e4211172d839e7f93ddc,"01.06.2023",yandex,cpc,prof-frontend,"25327894","11.06.2023",167625,Успешная продажа,142
+bd5ad484a0cf7f80c1522009dd4ee3d825f35a46,"01.06.2023",yandex,cpc,base-python,"73882489","26.06.2023",160920,Успешная продажа,142
+f1dc9c36bd7269ed93e736b29de33e0e7a02e1a3,"20.06.2023",telegram,cpp,base-java,"20614407","26.06.2023",151192,Успешная продажа,142
+"36d4c2cfec3dba3a50cfd0d31ace2d4dcb70560c","01.06.2023",yandex,cpc,dod-php,"24703215","03.06.2023",150255,Успешная продажа,142
