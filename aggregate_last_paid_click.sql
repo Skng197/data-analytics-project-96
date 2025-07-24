@@ -1,6 +1,6 @@
 WITH last_paid_clicks AS (
     SELECT
-        l.visitor_id,
+        s.visitor_id,
         s.visit_date::date AS visit_date,
         s.source AS utm_source,
         s.medium AS utm_medium,
@@ -13,11 +13,10 @@ WITH last_paid_clicks AS (
             PARTITION BY l.lead_id
             ORDER BY s.visit_date DESC
         ) AS rn
-    FROM public.leads l
-    JOIN public.sessions s
-        ON l.visitor_id = s.visitor_id
-        AND s.visit_date < l.created_at
-        AND LOWER(COALESCE(s.medium, '')) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+    FROM public.sessions s
+    JOIN public.leads l ON s.visitor_id = l.visitor_id
+    WHERE s.visit_date < l.created_at
+    AND LOWER(COALESCE(s.medium, '')) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
 ),
 filtered_last_paid_clicks AS (
     SELECT *
