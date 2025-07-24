@@ -1,68 +1,78 @@
-SELECT
-    date_utm.visit_date,
-    date_utm.utm_source,
-    date_utm.utm_medium,
-    date_utm.utm_campaign,
-    COUNT(DISTINCT s.visitor_id) AS visitors_count,
-    COALESCE((
-        SELECT SUM(daily_spent)
-        FROM (
-            SELECT utm_source, utm_medium, utm_campaign, campaign_date::date, daily_spent
-            FROM public.ya_ads
-            UNION ALL
-            SELECT utm_source, utm_medium, utm_campaign, campaign_date::date, daily_spent
-            FROM public.vk_ads
-        ) ads
-        WHERE ads.utm_source = date_utm.utm_source
-        AND ads.utm_medium = date_utm.utm_medium
-        AND ads.utm_campaign = date_utm.utm_campaign
-        AND ads.campaign_date = date_utm.visit_date
-    ), 0) AS total_cost,
-    COUNT(DISTINCT l.lead_id) AS leads_count,
-    COUNT(DISTINCT CASE 
-                      WHEN l.closing_reason = 'Успешно реализовано' OR l.status_id = 142 
-                      THEN l.lead_id 
-                    END) AS purchases_count,
-    SUM(CASE 
-          WHEN l.closing_reason = 'Успешно реализовано' OR l.status_id = 142 
-          THEN l.amount 
-          ELSE 0 
-        END) AS revenue
-FROM (
-    SELECT 
+WITH last_paid_clicks AS (
+    SELECT
+        s.visitor_id,
         s.visit_date::date AS visit_date,
         s.source AS utm_source,
         s.medium AS utm_medium,
         s.campaign AS utm_campaign,
-        s.visitor_id,
-        MAX(s.visit_date) OVER (
+        l.lead_id,
+        l.amount,
+        l.closing_reason,
+        l.status_id,
+        ROW_NUMBER() OVER (
             PARTITION BY l.lead_id
             ORDER BY s.visit_date DESC
-        ) AS last_click_date
+        ) AS rn
     FROM public.sessions s
-    JOIN public.leads l ON s.visitor_id = l.visitor_id
+    INNER JOIN public.leads l ON s.visitor_id = l.visitor_id
     WHERE s.visit_date <= l.created_at
-    AND LOWER(s.medium) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
-) date_utm
-JOIN public.sessions s ON 
-    s.visit_date::date = date_utm.visit_date AND
-    s.source = date_utm.utm_source AND
-    s.medium = date_utm.utm_medium AND
-    s.campaign = date_utm.utm_campaign
-LEFT JOIN public.leads l ON 
-    s.visitor_id = l.visitor_id AND
-    s.visit_date <= l.created_at
-WHERE s.visit_date = date_utm.last_click_date
+    AND LOWER(COALESCE(s.medium, '')) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+),
+ads_costs AS (
+    SELECT
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        campaign_date::date AS cost_date,
+        SUM(daily_spent) AS daily_cost
+    FROM (
+        SELECT 
+            utm_source, utm_medium, utm_campaign, 
+            campaign_date, daily_spent
+        FROM public.ya_ads
+        UNION ALL
+        SELECT 
+            utm_source, utm_medium, utm_campaign, 
+            campaign_date, daily_spent
+        FROM public.vk_ads
+    ) combined_ads
+    GROUP BY utm_source, utm_medium, utm_campaign, campaign_date::date
+)
+SELECT
+    lpc.visit_date,
+    lpc.utm_source,
+    lpc.utm_medium,
+    lpc.utm_campaign,
+    COUNT(DISTINCT lpc.visitor_id) AS visitors_count,
+    COALESCE(ac.daily_cost, 0) AS total_cost,
+    COUNT(DISTINCT lpc.lead_id) AS leads_count,
+    COUNT(DISTINCT CASE 
+                      WHEN lpc.closing_reason = 'Успешно реализовано' OR lpc.status_id = 142 
+                      THEN lpc.lead_id 
+                    END) AS purchases_count,
+    COALESCE(SUM(CASE 
+          WHEN lpc.closing_reason = 'Успешно реализовано' OR lpc.status_id = 142 
+          THEN lpc.amount 
+          ELSE 0 
+        END), 0) AS revenue
+FROM last_paid_clicks lpc
+LEFT JOIN ads_costs ac ON 
+    lpc.visit_date = ac.cost_date AND
+    lpc.utm_source = ac.utm_source AND
+    lpc.utm_medium = ac.utm_medium AND
+    lpc.utm_campaign = ac.utm_campaign
+WHERE lpc.rn = 1
 GROUP BY 
-    date_utm.visit_date,
-    date_utm.utm_source,
-    date_utm.utm_medium,
-    date_utm.utm_campaign
+    lpc.visit_date,
+    lpc.utm_source,
+    lpc.utm_medium,
+    lpc.utm_campaign,
+    ac.daily_cost
 ORDER BY
     revenue DESC NULLS LAST,
-    visit_date ASC,
+    lpc.visit_date ASC,
     visitors_count DESC,
-    utm_source ASC,
-    utm_medium ASC,
-    utm_campaign ASC
+    lpc.utm_source ASC,
+    lpc.utm_medium ASC,
+    lpc.utm_campaign ASC
 LIMIT 15;
