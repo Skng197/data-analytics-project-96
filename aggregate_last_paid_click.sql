@@ -40,10 +40,10 @@ ads_costs AS (
 )
 SELECT
     lpc.visit_date,
+    COUNT(DISTINCT lpc.visitor_id) AS visitors_count,
     lpc.utm_source,
     lpc.utm_medium,
     lpc.utm_campaign,
-    COUNT(DISTINCT lpc.visitor_id) AS visitors_count,
     COALESCE(ac.daily_cost, 0) AS total_cost,
     COUNT(DISTINCT lpc.lead_id) AS leads_count,
     COUNT(DISTINCT CASE 
