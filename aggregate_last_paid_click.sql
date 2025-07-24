@@ -1,5 +1,5 @@
 WITH last_paid_clicks AS (
-    SELECT
+    SELECT DISTINCT
         s.visitor_id,
         s.visit_date::date AS visit_date,
         s.source AS utm_source,
@@ -8,15 +8,19 @@ WITH last_paid_clicks AS (
         l.lead_id,
         l.amount,
         l.closing_reason,
-        l.status_id,
-        ROW_NUMBER() OVER (
-            PARTITION BY l.lead_id
-            ORDER BY s.visit_date DESC
-        ) AS rn
+        l.status_id
     FROM public.sessions s
     INNER JOIN public.leads l ON s.visitor_id = l.visitor_id
     WHERE s.visit_date <= l.created_at
     AND LOWER(COALESCE(s.medium, '')) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+    AND NOT EXISTS (
+        SELECT 1
+        FROM public.sessions s2
+        WHERE s2.visitor_id = s.visitor_id
+        AND s2.visit_date > s.visit_date
+        AND s2.visit_date <= l.created_at
+        AND LOWER(COALESCE(s2.medium, '')) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+    )
 ),
 ads_costs AS (
     SELECT
@@ -61,7 +65,6 @@ LEFT JOIN ads_costs ac ON
     lpc.utm_source = ac.utm_source AND
     lpc.utm_medium = ac.utm_medium AND
     lpc.utm_campaign = ac.utm_campaign
-WHERE lpc.rn = 1
 GROUP BY 
     lpc.visit_date,
     lpc.utm_source,
