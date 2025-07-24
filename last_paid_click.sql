@@ -1,11 +1,11 @@
  SELECT
     t.visitor_id,
-    TO_CHAR(t.visit_date, 'YYYY-MM-DD HH24:MI:SS') AS visit_date,
+    TO_CHAR(t.visit_date, 'YYYY-MM-DD HH24:MI:SS.000') AS visit_date,
     t.utm_source,
     t.utm_medium,
     t.utm_campaign,
     t.lead_id,
-    TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+    TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS.000') AS created_at,
     t.amount,
     t.closing_reason,
     t.status_id
