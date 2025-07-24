@@ -16,7 +16,7 @@ FROM (
         lpc.utm_campaign,
         COUNT(DISTINCT lpc.visitor_id) AS visitors_count,
         COALESCE((
-            SELECT SUM(daily_spent) 
+            SELECT SUM(daily_spent)
             FROM (
                 SELECT utm_source, utm_medium, utm_campaign, campaign_date::date, daily_spent
                 FROM public.ya_ads
