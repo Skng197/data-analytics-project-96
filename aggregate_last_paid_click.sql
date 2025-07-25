@@ -31,10 +31,10 @@ visits AS (
         source AS utm_source,
         medium AS utm_medium,
         campaign AS utm_campaign,
-        COUNT(DISTINCT visitor_id) AS visitors_count
+        COUNT(*) AS visitors_count
     FROM public.sessions
     WHERE LOWER(medium) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
-    GROUP BY 1,2,3,4
+    GROUP BY 1, 2, 3, 4
 ),
 costs AS (
     SELECT
@@ -48,7 +48,7 @@ costs AS (
         UNION ALL
         SELECT campaign_date, utm_source, utm_medium, utm_campaign, daily_spent FROM public.ya_ads
     ) ads
-    GROUP BY 1,2,3,4
+    GROUP BY 1, 2, 3, 4
 ),
 leads_agg AS (
     SELECT
@@ -66,34 +66,47 @@ leads_agg AS (
               OR status_id = 142 THEN amount
         END) AS revenue
     FROM attributed_leads
-    GROUP BY 1,2,3,4
+    GROUP BY 1, 2, 3, 4
+),
+all_keys AS (
+    SELECT DISTINCT visit_date, utm_source, utm_medium, utm_campaign FROM visits
+    UNION
+    SELECT DISTINCT visit_date, utm_source, utm_medium, utm_campaign FROM costs
+    UNION
+    SELECT DISTINCT visit_date, utm_source, utm_medium, utm_campaign FROM leads_agg
 )
+
 SELECT
-    COALESCE(v.visit_date, c.visit_date, l.visit_date) AS visit_date,
-    COALESCE(v.utm_source, c.utm_source, l.utm_source) AS utm_source,
-    COALESCE(v.utm_medium, c.utm_medium, l.utm_medium) AS utm_medium,
-    COALESCE(v.utm_campaign, c.utm_campaign, l.utm_campaign) AS utm_campaign,
-    COALESCE(visitors_count, 0) AS visitors_count,
-    COALESCE(total_cost, 0) AS total_cost,
-    COALESCE(leads_count, 0) AS leads_count,
-    COALESCE(purchases_count, 0) AS purchases_count,
-    COALESCE(revenue, 0) AS revenue
-FROM visits v
-FULL OUTER JOIN costs c
-    ON v.visit_date = c.visit_date
-    AND v.utm_source = c.utm_source
-    AND v.utm_medium = c.utm_medium
-    AND v.utm_campaign = c.utm_campaign
-FULL OUTER JOIN leads_agg l
-    ON COALESCE(v.visit_date, c.visit_date) = l.visit_date
-    AND COALESCE(v.utm_source, c.utm_source) = l.utm_source
-    AND COALESCE(v.utm_medium, c.utm_medium) = l.utm_medium
-    AND COALESCE(v.utm_campaign, c.utm_campaign) = l.utm_campaign
+    k.visit_date,
+    k.utm_source,
+    k.utm_medium,
+    k.utm_campaign,
+    COALESCE(v.visitors_count, 0) AS visitors_count,
+    COALESCE(c.total_cost, 0) AS total_cost,
+    COALESCE(l.leads_count, 0) AS leads_count,
+    COALESCE(l.purchases_count, 0) AS purchases_count,
+    COALESCE(l.revenue, 0) AS revenue
+FROM all_keys k
+LEFT JOIN visits v
+    ON k.visit_date = v.visit_date
+    AND k.utm_source = v.utm_source
+    AND k.utm_medium = v.utm_medium
+    AND k.utm_campaign = v.utm_campaign
+LEFT JOIN costs c
+    ON k.visit_date = c.visit_date
+    AND k.utm_source = c.utm_source
+    AND k.utm_medium = c.utm_medium
+    AND k.utm_campaign = c.utm_campaign
+LEFT JOIN leads_agg l
+    ON k.visit_date = l.visit_date
+    AND k.utm_source = l.utm_source
+    AND k.utm_medium = l.utm_medium
+    AND k.utm_campaign = l.utm_campaign
 ORDER BY
     revenue DESC NULLS LAST,
-    visit_date ASC,
+    k.visit_date ASC,
     visitors_count DESC,
-    utm_source ASC,
-    utm_medium ASC,
-    utm_campaign asc
+    k.utm_source ASC,
+    k.utm_medium ASC,
+    k.utm_campaign ASC
 LIMIT 15;
