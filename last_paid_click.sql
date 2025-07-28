@@ -1,21 +1,21 @@
- SELECT
-    t.visitor_id,
-    TO_CHAR(t.visit_date, 'YYYY-MM-DD HH24:MI:SS.MS') AS visit_date,
-    t.utm_source,
-    t.utm_medium,
-    t.utm_campaign,
-    t.lead_id,
-    TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS.MS') AS created_at,
-    t.amount,
-    t.closing_reason,
-    t.status_id
-FROM (
+WITH paid_sessions AS (
     SELECT
-        l.visitor_id,
+        visitor_id,
+        visit_date,
+        source AS utm_source,
+        medium AS utm_medium,
+        campaign AS utm_campaign
+    FROM public.sessions
+    WHERE LOWER(medium) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
+),
+
+leads_with_ranked_sessions AS (
+    SELECT
+        s.visitor_id,
         s.visit_date,
-        s.source AS utm_source,
-        s.medium AS utm_medium,
-        s.campaign AS utm_campaign,
+        s.utm_source,
+        s.utm_medium,
+        s.utm_campaign,
         l.lead_id,
         l.created_at,
         l.amount,
@@ -25,17 +25,44 @@ FROM (
             PARTITION BY l.lead_id
             ORDER BY s.visit_date DESC
         ) AS rn
-    FROM public.leads l
-    JOIN public.sessions s
+    FROM paid_sessions s
+    JOIN public.leads l
         ON l.visitor_id = s.visitor_id
         AND s.visit_date < l.created_at
-        AND LOWER(s.medium) IN ('cpc', 'cpm', 'cpa', 'youtube', 'cpp', 'tg', 'social')
-) t
-WHERE t.rn = 1
+),
+
+last_paid_click AS (
+    SELECT
+        visitor_id,
+        visit_date,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        lead_id,
+        created_at,
+        amount,
+        closing_reason,
+        status_id
+    FROM leads_with_ranked_sessions
+    WHERE rn = 1
+)
+
+SELECT
+    visitor_id,
+    TO_CHAR(visit_date, 'YYYY-MM-DD HH24:MI:SS.MS') AS visit_date,
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    lead_id,
+    TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS.MS') AS created_at,
+    amount,
+    closing_reason,
+    status_id
+FROM last_paid_click
 ORDER BY
-    t.amount DESC NULLS LAST,
-    t.visit_date ASC,
-    t.utm_source ASC,
-    t.utm_medium ASC,
-    t.utm_campaign ASC
-LIMIT 10
+    amount DESC NULLS LAST,
+    visit_date ASC,
+    utm_source ASC,
+    utm_medium ASC,
+    utm_campaign ASC
+LIMIT 10;
