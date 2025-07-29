@@ -67,32 +67,31 @@ agg AS (
             THEN f.amount ELSE 0 END) AS revenue
     FROM filtered_last_click f
     GROUP BY 1, 2, 3, 4
-),
-final AS (
-    SELECT
-        a.visit_date,
-        a.utm_source,
-        a.utm_medium,
-        a.utm_campaign,
-        a.visitors_count,
-        COALESCE(c.total_cost, 0) AS total_cost,
-        a.leads_count,
-        a.purchases_count,
-        a.revenue
-    FROM agg a
-    LEFT JOIN ad_costs c
-        ON a.visit_date = c.visit_date
-        AND a.utm_source = c.utm_source
-        AND a.utm_medium = c.utm_medium
-        AND a.utm_campaign = c.utm_campaign
 )
-SELECT *
-FROM final
+SELECT
+    a.visit_date,
+    a.visitors_count,
+    a.utm_source,
+    a.utm_medium,
+    a.utm_campaign,
+    CASE
+        WHEN c.total_cost IS NULL THEN ''
+        ELSE c.total_cost::text
+    END AS total_cost,
+    a.leads_count,
+    a.purchases_count,
+    a.revenue
+FROM agg a
+LEFT JOIN ad_costs c
+    ON a.visit_date = c.visit_date
+    AND a.utm_source = c.utm_source
+    AND a.utm_medium = c.utm_medium
+    AND a.utm_campaign = c.utm_campaign
 ORDER BY
-    revenue DESC NULLS LAST,
-    visit_date ASC,
-    visitors_count DESC,
-    utm_source ASC,
-    utm_medium ASC,
-    utm_campaign ASC
+    a.revenue DESC NULLS LAST,
+    a.visit_date ASC,
+    a.visitors_count DESC,
+    a.utm_source ASC,
+    a.utm_medium ASC,
+    a.utm_campaign ASC
 LIMIT 15;
