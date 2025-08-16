@@ -16,8 +16,9 @@ WITH last_paid_click AS (
         ) AS rn
     FROM sessions AS s
     LEFT JOIN leads AS l
-        ON s.visitor_id = l.visitor_id
-        AND s.visit_date <= l.created_at
+        ON
+            s.visitor_id = l.visitor_id
+            AND s.visit_date <= l.created_at
     WHERE
         LOWER(s.medium) IN (
             'cpc', 'cpm', 'cpp', 'cpa', 'youtube', 'tg', 'social'
@@ -26,46 +27,50 @@ WITH last_paid_click AS (
 
 filtered_last_click AS (
     SELECT
-        visitor_id,
-        visit_date,
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        lead_id,
-        created_at,
-        amount,
-        closing_reason,
-        status_id,
-        rn
-    FROM last_paid_click
-    WHERE rn = 1
+        lpc.visitor_id,
+        lpc.visit_date,
+        lpc.utm_source,
+        lpc.utm_medium,
+        lpc.utm_campaign,
+        lpc.lead_id,
+        lpc.created_at,
+        lpc.amount,
+        lpc.closing_reason,
+        lpc.status_id,
+        lpc.rn
+    FROM last_paid_click AS lpc
+    WHERE lpc.rn = 1
 ),
 
 ad_costs AS (
     SELECT
-        campaign_date::date AS visit_date,
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        SUM(daily_spent) AS total_cost
+        ads_agg.visit_date::date AS visit_date,
+        ads_agg.utm_source,
+        ads_agg.utm_medium,
+        ads_agg.utm_campaign,
+        SUM(ads_agg.daily_spent) AS total_cost
     FROM (
         SELECT
-            campaign_date,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            daily_spent
-        FROM ya_ads
+            ya.campaign_date AS visit_date,
+            ya.utm_source,
+            ya.utm_medium,
+            ya.utm_campaign,
+            ya.daily_spent
+        FROM ya_ads AS ya
         UNION ALL
         SELECT
-            campaign_date,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            daily_spent
-        FROM vk_ads
-    ) AS ads
-    GROUP BY 1, 2, 3, 4
+            vk.campaign_date AS visit_date,
+            vk.utm_source,
+            vk.utm_medium,
+            vk.utm_campaign,
+            vk.daily_spent
+        FROM vk_ads AS vk
+    ) AS ads_agg
+    GROUP BY
+        ads_agg.visit_date::date,
+        ads_agg.utm_source,
+        ads_agg.utm_medium,
+        ads_agg.utm_campaign
 ),
 
 agg AS (
@@ -85,7 +90,11 @@ agg AS (
             ELSE 0
         END) AS revenue
     FROM filtered_last_click AS f
-    GROUP BY 1, 2, 3, 4
+    GROUP BY
+        f.visit_date::date,
+        f.utm_source,
+        f.utm_medium,
+        f.utm_campaign
 )
 
 SELECT
@@ -100,10 +109,11 @@ SELECT
     (c.total_cost)::numeric AS total_cost
 FROM agg AS a
 LEFT JOIN ad_costs AS c
-    ON a.visit_date = c.visit_date
-    AND a.utm_source = c.utm_source
-    AND a.utm_medium = c.utm_medium
-    AND a.utm_campaign = c.utm_campaign
+    ON
+        a.visit_date = c.visit_date
+        AND a.utm_source = c.utm_source
+        AND a.utm_medium = c.utm_medium
+        AND a.utm_campaign = c.utm_campaign
 ORDER BY
     a.revenue DESC NULLS LAST,
     a.visit_date ASC,

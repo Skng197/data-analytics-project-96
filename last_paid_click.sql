@@ -30,27 +30,28 @@ joined_data AS (
         ) AS rn
     FROM paid_sessions AS ps
     LEFT JOIN leads AS l
-        ON ps.visitor_id = l.visitor_id
-        AND ps.visit_date <= l.created_at
+        ON
+            ps.visitor_id = l.visitor_id
+            AND ps.visit_date <= l.created_at
 )
 
 SELECT
-    visitor_id,
-    visit_date,
-    utm_source,
-    utm_medium,
-    utm_campaign,
-    lead_id,
-    created_at,
-    amount,
-    closing_reason,
-    status_id
-FROM joined_data
-WHERE rn = 1 OR lead_id IS NULL
+    jd.visitor_id,
+    jd.visit_date,
+    jd.utm_source,
+    jd.utm_medium,
+    jd.utm_campaign,
+    jd.lead_id,
+    jd.created_at,
+    jd.amount,
+    jd.closing_reason,
+    jd.status_id
+FROM joined_data AS jd
+WHERE jd.rn = 1 OR jd.lead_id IS NULL
 ORDER BY
-    amount DESC NULLS LAST,
-    visit_date ASC,
-    utm_source ASC,
-    utm_medium ASC,
-    utm_campaign ASC
+    jd.amount DESC NULLS LAST,
+    jd.visit_date ASC,
+    jd.utm_source ASC,
+    jd.utm_medium ASC,
+    jd.utm_campaign ASC
 LIMIT 10;

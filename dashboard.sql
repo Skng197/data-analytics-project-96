@@ -26,36 +26,51 @@ WITH last_paid_click AS (
 ),
 
 filtered_last_click AS (
-    SELECT *
-    FROM last_paid_click
-    WHERE rn = 1
+    SELECT
+        lpc.visitor_id,
+        lpc.visit_date,
+        lpc.utm_source,
+        lpc.utm_medium,
+        lpc.utm_campaign,
+        lpc.lead_id,
+        lpc.created_at,
+        lpc.amount,
+        lpc.closing_reason,
+        lpc.status_id,
+        lpc.rn
+    FROM last_paid_click AS lpc
+    WHERE lpc.rn = 1
 ),
 
 ad_costs AS (
     SELECT
-        campaign_date::date AS visit_date,
-        utm_source,
-        utm_medium,
-        utm_campaign,
-        SUM(daily_spent) AS total_cost
+        ads_agg.visit_date::date AS visit_date,
+        ads_agg.utm_source,
+        ads_agg.utm_medium,
+        ads_agg.utm_campaign,
+        SUM(ads_agg.daily_spent) AS total_cost
     FROM (
         SELECT
-            campaign_date,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            daily_spent
-        FROM ya_ads
+            ya.campaign_date AS visit_date,
+            ya.utm_source,
+            ya.utm_medium,
+            ya.utm_campaign,
+            ya.daily_spent
+        FROM ya_ads AS ya
         UNION ALL
         SELECT
-            campaign_date,
-            utm_source,
-            utm_medium,
-            utm_campaign,
-            daily_spent
-        FROM vk_ads
-    ) AS ads
-    GROUP BY 1, 2, 3, 4
+            vk.campaign_date AS visit_date,
+            vk.utm_source,
+            vk.utm_medium,
+            vk.utm_campaign,
+            vk.daily_spent
+        FROM vk_ads AS vk
+    ) AS ads_agg
+    GROUP BY
+        ads_agg.visit_date::date,
+        ads_agg.utm_source,
+        ads_agg.utm_medium,
+        ads_agg.utm_campaign
 ),
 
 agg AS (
@@ -75,7 +90,11 @@ agg AS (
             ELSE 0
         END) AS revenue
     FROM filtered_last_click AS f
-    GROUP BY 1, 2, 3, 4
+    GROUP BY
+        f.visit_date::date,
+        f.utm_source,
+        f.utm_medium,
+        f.utm_campaign
 )
 
 SELECT
@@ -104,7 +123,8 @@ ORDER BY
     a.utm_campaign ASC
 LIMIT 15;
 
---------
+-------
+
 WITH paid_sessions AS (
     SELECT
         s.visitor_id,
@@ -137,27 +157,28 @@ joined_data AS (
         ) AS rn
     FROM paid_sessions AS ps
     LEFT JOIN leads AS l
-        ON ps.visitor_id = l.visitor_id
-        AND ps.visit_date <= l.created_at
+        ON
+            ps.visitor_id = l.visitor_id
+            AND ps.visit_date <= l.created_at
 )
 
 SELECT
-    visitor_id,
-    visit_date,
-    utm_source,
-    utm_medium,
-    utm_campaign,
-    lead_id,
-    created_at,
-    amount,
-    closing_reason,
-    status_id
-FROM joined_data
-WHERE rn = 1 OR lead_id IS NULL
+    jd.visitor_id,
+    jd.visit_date,
+    jd.utm_source,
+    jd.utm_medium,
+    jd.utm_campaign,
+    jd.lead_id,
+    jd.created_at,
+    jd.amount,
+    jd.closing_reason,
+    jd.status_id
+FROM joined_data AS jd
+WHERE jd.rn = 1 OR jd.lead_id IS NULL
 ORDER BY
-    amount DESC NULLS LAST,
-    visit_date ASC,
-    utm_source ASC,
-    utm_medium ASC,
-    utm_campaign ASC
+    jd.amount DESC NULLS LAST,
+    jd.visit_date ASC,
+    jd.utm_source ASC,
+    jd.utm_medium ASC,
+    jd.utm_campaign ASC
 LIMIT 10;
