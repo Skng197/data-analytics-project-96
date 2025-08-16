@@ -16,9 +16,8 @@ WITH last_paid_click AS (
         ) AS rn
     FROM sessions AS s
     LEFT JOIN leads AS l
-        ON
-            s.visitor_id = l.visitor_id
-            AND s.visit_date <= l.created_at
+        ON s.visitor_id = l.visitor_id
+        AND s.visit_date <= l.created_at
     WHERE
         LOWER(s.medium) IN (
             'cpc', 'cpm', 'cpp', 'cpa', 'youtube', 'tg', 'social'
@@ -26,7 +25,18 @@ WITH last_paid_click AS (
 ),
 
 filtered_last_click AS (
-    SELECT *
+    SELECT
+        visitor_id,
+        visit_date,
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        lead_id,
+        created_at,
+        amount,
+        closing_reason,
+        status_id,
+        rn
     FROM last_paid_click
     WHERE rn = 1
 ),
@@ -90,11 +100,10 @@ SELECT
     (c.total_cost)::numeric AS total_cost
 FROM agg AS a
 LEFT JOIN ad_costs AS c
-    ON
-        a.visit_date = c.visit_date
-        AND a.utm_source = c.utm_source
-        AND a.utm_medium = c.utm_medium
-        AND a.utm_campaign = c.utm_campaign
+    ON a.visit_date = c.visit_date
+    AND a.utm_source = c.utm_source
+    AND a.utm_medium = c.utm_medium
+    AND a.utm_campaign = c.utm_campaign
 ORDER BY
     a.revenue DESC NULLS LAST,
     a.visit_date ASC,

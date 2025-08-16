@@ -30,9 +30,8 @@ joined_data AS (
         ) AS rn
     FROM paid_sessions AS ps
     LEFT JOIN leads AS l
-        ON
-            ps.visitor_id = l.visitor_id
-            AND ps.visit_date <= l.created_at
+        ON ps.visitor_id = l.visitor_id
+        AND ps.visit_date <= l.created_at
 )
 
 SELECT
