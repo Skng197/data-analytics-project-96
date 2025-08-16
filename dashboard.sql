@@ -1,3 +1,8 @@
+1. Presentation - https://docs.google.com/presentation/d/1svFl8BPH-MHYtti21IdgyuqS8Jn2bl7UwCSC9rCL5To/edit?usp=sharing
+
+2. Dashboard - https://540cbc8a.us1a.app.preset.io/superset/dashboard/p/Joj5pW0lNA2/
+
+--------------
 WITH last_paid_click AS (
     SELECT
         s.visitor_id,
