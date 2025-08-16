@@ -14,17 +14,23 @@ WITH last_paid_click AS (
             PARTITION BY s.visitor_id
             ORDER BY s.visit_date DESC
         ) AS rn
-    FROM sessions s
-    LEFT JOIN leads l
-        ON s.visitor_id = l.visitor_id
-        AND s.visit_date <= l.created_at
-    WHERE LOWER(s.medium) IN ('cpc', 'cpm', 'cpp', 'cpa', 'youtube', 'tg', 'social')
+    FROM sessions AS s
+    LEFT JOIN leads AS l
+        ON
+            s.visitor_id = l.visitor_id
+            AND s.visit_date <= l.created_at
+    WHERE
+        LOWER(s.medium) IN (
+            'cpc', 'cpm', 'cpp', 'cpa', 'youtube', 'tg', 'social'
+        )
 ),
+
 filtered_last_click AS (
     SELECT *
     FROM last_paid_click
     WHERE rn = 1
 ),
+
 ad_costs AS (
     SELECT
         campaign_date::date AS visit_date,
@@ -51,6 +57,7 @@ ad_costs AS (
     ) AS ads
     GROUP BY 1, 2, 3, 4
 ),
+
 agg AS (
     SELECT
         f.visit_date::date AS visit_date,
@@ -64,29 +71,30 @@ agg AS (
         ) AS purchases_count,
         SUM(CASE
             WHEN f.closing_reason = 'Успешно реализовано' OR f.status_id = 142
-            THEN f.amount ELSE 0 END) AS revenue
-    FROM filtered_last_click f
+                THEN f.amount
+            ELSE 0
+        END) AS revenue
+    FROM filtered_last_click AS f
     GROUP BY 1, 2, 3, 4
 )
+
 SELECT
     a.visit_date,
     a.visitors_count,
     a.utm_source,
     a.utm_medium,
     a.utm_campaign,
-    CASE
-        WHEN c.total_cost IS NULL THEN ''
-        ELSE c.total_cost::text
-    END AS total_cost,
     a.leads_count,
     a.purchases_count,
-    a.revenue
-FROM agg a
-LEFT JOIN ad_costs c
-    ON a.visit_date = c.visit_date
-    AND a.utm_source = c.utm_source
-    AND a.utm_medium = c.utm_medium
-    AND a.utm_campaign = c.utm_campaign
+    a.revenue,
+    (c.total_cost)::numeric AS total_cost
+FROM agg AS a
+LEFT JOIN ad_costs AS c
+    ON
+        a.visit_date = c.visit_date
+        AND a.utm_source = c.utm_source
+        AND a.utm_medium = c.utm_medium
+        AND a.utm_campaign = c.utm_campaign
 ORDER BY
     a.revenue DESC NULLS LAST,
     a.visit_date ASC,
