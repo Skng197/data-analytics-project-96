@@ -8,7 +8,7 @@ SELECT
     (COALESCE(SUM(revenue), 0) - COALESCE(SUM(total_cost), 0))
     / NULLIF(COALESCE(SUM(total_cost), 0), 0);
 
---- CPPU Cost Per Paying User Стоимость привлечения одного платящего пользователя
+--- CPPU Cost Per Paying User Стоимость привлечения платящего пользователя
 SELECT SUM(total_cost) / NULLIF(SUM(purchases_count), 0);
 
 --- CPL Cost Per Lead Стоимость одного лида
